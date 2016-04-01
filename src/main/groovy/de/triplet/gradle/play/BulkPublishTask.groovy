@@ -12,10 +12,10 @@ class BulkPublishTask extends DefaultTask {
     static BulkPublishTask createBulkPublishTask(
             Project project, ApplicationVariant variant, DefaultTask task) {
 
-        BulkPublishTask bulkPublishTask = project.tasks.create("All'${task.getClass().getSimpleName()}'${variant.buildType.name.capitalize()}", BulkPublishTask);
+        BulkPublishTask bulkPublishTask = project.tasks.create("All${getTaskName(task)}s${variant.buildType.name.capitalize()}", BulkPublishTask);
 
         bulkPublishTask.group = PlayPublisherPlugin.PLAY_STORE_GROUP
-        bulkPublishTask.description = "Runs '${task.getClass().getSimpleName()}' for all variants of build Type '${variant.buildType.name}'"
+        bulkPublishTask.description = "Runs ${getTaskName(task)} for all variants of build Type '${variant.buildType.name}'"
         //bulkPublishTask.outputs.upToDateWhen { false }
 
         bulkPublishTask.dependsOn(task)
@@ -24,4 +24,10 @@ class BulkPublishTask extends DefaultTask {
     }
 
 
+    static String getTaskName(DefaultTask task) {
+        String simpleName = task.getClass().getSimpleName()
+        String[] split = simpleName.split("_")
+
+        return split.length > 1 ? split[0] : simpleName
+    }
 }
