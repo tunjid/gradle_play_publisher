@@ -1,7 +1,9 @@
 package de.triplet.gradle.play
 
 import com.android.build.gradle.AppPlugin
+import com.android.build.gradle.api.ApplicationVariant
 import org.apache.commons.lang.StringUtils
+import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
@@ -18,9 +20,14 @@ class PlayPublisherPlugin implements Plugin<Project> {
             throw new IllegalStateException("The 'com.android.application' plugin is required.")
         }
 
-        def extension = project.extensions.create('play', PlayPublisherPluginExtension)
+        HashMap<String, BulkPublishTask> bulkBootstrapTask = new HashMap<>();
+        HashMap<String, BulkPublishTask> bulkPlayResourcesTask = new HashMap<>();
+        HashMap<String, BulkPublishTask> bulkPlayPublishListingTask = new HashMap<>();
+        HashMap<String, BulkPublishTask> bulkPlayPublishApkTask = new HashMap<>();
 
-        project.android.applicationVariants.all { variant ->
+        PlayPublisherPluginExtension extension = project.extensions.create('play', PlayPublisherPluginExtension)
+
+        project.android.applicationVariants.all { ApplicationVariant variant ->
             if (variant.buildType.isDebuggable()) {
                 log.debug("Skipping debuggable build type ${variant.buildType.name}.")
                 return
@@ -29,10 +36,13 @@ class PlayPublisherPlugin implements Plugin<Project> {
             def buildTypeName = variant.buildType.name.capitalize()
 
             def productFlavorNames = variant.productFlavors.collect { it.name.capitalize() }
+
             if (productFlavorNames.isEmpty()) {
                 productFlavorNames = [""]
             }
+
             def productFlavorName = productFlavorNames.join('')
+
             def flavor = StringUtils.uncapitalize(productFlavorName)
 
             def variationName = "${productFlavorName}${buildTypeName}"
@@ -50,25 +60,32 @@ class PlayPublisherPlugin implements Plugin<Project> {
             def variantData = variant.variantData
 
             // Create and configure bootstrap task for this variant.
-            def bootstrapTask = project.tasks.create(bootstrapTaskName, BootstrapTask)
+            BootstrapTask bootstrapTask = project.tasks.create(bootstrapTaskName, BootstrapTask)
             bootstrapTask.extension = extension
             bootstrapTask.variant = variant
+
             if (StringUtils.isNotEmpty(flavor)) {
                 bootstrapTask.outputFolder = new File(project.projectDir, "src/${flavor}/play")
             } else {
                 bootstrapTask.outputFolder = new File(project.projectDir, "src/main/play")
             }
+
             bootstrapTask.description = "Downloads the play store listing for the ${variationName} build. No download of image resources. See #18."
             bootstrapTask.group = PLAY_STORE_GROUP
 
+            addToBulkTask(extension, project, variant, bootstrapTask, bulkBootstrapTask)
+
             // Create and configure task to collect the play store resources.
-            def playResourcesTask = project.tasks.create(playResourcesTaskName, GeneratePlayResourcesTask)
+            GeneratePlayResourcesTask playResourcesTask = project.tasks.create(playResourcesTaskName, GeneratePlayResourcesTask)
 
             playResourcesTask.inputs.file(new File(project.projectDir, "src/main/play"))
+
             if (StringUtils.isNotEmpty(flavor)) {
                 playResourcesTask.inputs.file(new File(project.projectDir, "src/${flavor}/play"))
             }
+
             playResourcesTask.inputs.file(new File(project.projectDir, "src/${variant.buildType.name}/play"))
+
             if (StringUtils.isNotEmpty(flavor)) {
                 playResourcesTask.inputs.file(new File(project.projectDir, "src/${variant.name}/play"))
             }
@@ -77,8 +94,12 @@ class PlayPublisherPlugin implements Plugin<Project> {
             playResourcesTask.description = "Collects play store resources for the ${variationName} build"
             playResourcesTask.group = PLAY_STORE_GROUP
 
+            addToBulkTask(extension, project, variant, playResourcesTask, bulkPlayResourcesTask)
+
+
             // Create and configure publisher meta task for this variant
-            def publishListingTask = project.tasks.create(publishListingTaskName, PlayPublishListingTask)
+            PlayPublishListingTask publishListingTask = project.tasks.create(publishListingTaskName, PlayPublishListingTask)
+
             publishListingTask.extension = extension
             publishListingTask.variant = variant
             publishListingTask.inputFolder = playResourcesTask.outputFolder
@@ -86,11 +107,15 @@ class PlayPublisherPlugin implements Plugin<Project> {
             publishListingTask.group = PLAY_STORE_GROUP
 
             // Attach tasks to task graph.
-            publishListingTask.dependsOn playResourcesTask
+            publishListingTask.dependsOn(playResourcesTask)
+
+            addToBulkTask(extension, project, variant, publishListingTask, bulkPlayPublishListingTask)
 
             if (zipAlignTask && variantData.zipAlignEnabled) {
+
                 // Create and configure publisher apk task for this variant.
-                def publishApkTask = project.tasks.create(publishApkTaskName, PlayPublishApkTask)
+                PlayPublishApkTask publishApkTask = project.tasks.create(publishApkTaskName, PlayPublishApkTask)
+
                 publishApkTask.extension = extension
                 publishApkTask.variant = variant
                 publishApkTask.inputFolder = playResourcesTask.outputFolder
@@ -106,9 +131,26 @@ class PlayPublisherPlugin implements Plugin<Project> {
                 publishTask.dependsOn publishListingTask
                 publishApkTask.dependsOn playResourcesTask
                 publishApkTask.dependsOn assembleTask
+
+                addToBulkTask(extension, project, variant, publishApkTask, bulkPlayPublishApkTask)
+
             } else {
                 log.warn("Could not find ZipAlign task. Did you specify a signingConfig for the variation ${variationName}?")
             }
+        }
+    }
+
+    static void addToBulkTask(PlayPublisherPluginExtension extension, Project project, ApplicationVariant variant, DefaultTask task, HashMap<String, BulkPublishTask> bulkTasks) {
+
+        if (extension.buildTypeName == null || !variant.buildType.name.equals(extension.buildTypeName)) return;
+
+        BulkPublishTask bulkPublishTask = bulkTasks.get(variant.buildType.name);
+
+        if (bulkPublishTask == null) {
+            bulkPublishTask = BulkPublishTask.createBulkPublishTask(project, variant, task)
+            bulkTasks.put(variant.buildType.name, bulkPublishTask)
+        } else {
+            bulkPublishTask.dependsOn(task)
         }
     }
 

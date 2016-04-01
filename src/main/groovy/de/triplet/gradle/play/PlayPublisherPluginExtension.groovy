@@ -2,7 +2,13 @@ package de.triplet.gradle.play
 
 class PlayPublisherPluginExtension {
 
+    HashMap<String, String> serviceAccountEmails = new HashMap<>();
+
+    HashMap<String, File> pk12Files = new HashMap<>();
+
     String serviceAccountEmail
+
+    String buildTypeName
 
     File pk12File
 
