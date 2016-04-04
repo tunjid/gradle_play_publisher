@@ -6,6 +6,7 @@ import org.apache.commons.lang.StringUtils
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.UnknownTaskException
 
 class PlayPublisherPlugin implements Plugin<Project> {
 
@@ -20,14 +21,10 @@ class PlayPublisherPlugin implements Plugin<Project> {
             throw new IllegalStateException("The 'com.android.application' plugin is required.")
         }
 
-        HashMap<String, BulkPublishTask> bulkBootstrapTask = new HashMap<>();
-        HashMap<String, BulkPublishTask> bulkPlayResourcesTask = new HashMap<>();
-        HashMap<String, BulkPublishTask> bulkPlayPublishListingTask = new HashMap<>();
-        HashMap<String, BulkPublishTask> bulkPlayPublishApkTask = new HashMap<>();
-
         PlayPublisherPluginExtension extension = project.extensions.create('play', PlayPublisherPluginExtension)
 
         project.android.applicationVariants.all { ApplicationVariant variant ->
+
             if (variant.buildType.isDebuggable()) {
                 log.debug("Skipping debuggable build type ${variant.buildType.name}.")
                 return
@@ -73,7 +70,7 @@ class PlayPublisherPlugin implements Plugin<Project> {
             bootstrapTask.description = "Downloads the play store listing for the ${variationName} build. No download of image resources. See #18."
             bootstrapTask.group = PLAY_STORE_GROUP
 
-            addToBulkTask(extension, project, variant, bootstrapTask, bulkBootstrapTask)
+            addToBulkTask(extension, project, variant, bootstrapTask)
 
             // Create and configure task to collect the play store resources.
             GeneratePlayResourcesTask playResourcesTask = project.tasks.create(playResourcesTaskName, GeneratePlayResourcesTask)
@@ -94,8 +91,7 @@ class PlayPublisherPlugin implements Plugin<Project> {
             playResourcesTask.description = "Collects play store resources for the ${variationName} build"
             playResourcesTask.group = PLAY_STORE_GROUP
 
-            addToBulkTask(extension, project, variant, playResourcesTask, bulkPlayResourcesTask)
-
+            addToBulkTask(extension, project, variant, playResourcesTask)
 
             // Create and configure publisher meta task for this variant
             PlayPublishListingTask publishListingTask = project.tasks.create(publishListingTaskName, PlayPublishListingTask)
@@ -109,7 +105,7 @@ class PlayPublisherPlugin implements Plugin<Project> {
             // Attach tasks to task graph.
             publishListingTask.dependsOn(playResourcesTask)
 
-            addToBulkTask(extension, project, variant, publishListingTask, bulkPlayPublishListingTask)
+            addToBulkTask(extension, project, variant, publishListingTask)
 
             if (zipAlignTask && variantData.zipAlignEnabled) {
 
@@ -132,7 +128,7 @@ class PlayPublisherPlugin implements Plugin<Project> {
                 publishApkTask.dependsOn playResourcesTask
                 publishApkTask.dependsOn assembleTask
 
-                addToBulkTask(extension, project, variant, publishApkTask, bulkPlayPublishApkTask)
+                addToBulkTask(extension, project, variant, publishApkTask)
 
             } else {
                 log.warn("Could not find ZipAlign task. Did you specify a signingConfig for the variation ${variationName}?")
@@ -140,18 +136,32 @@ class PlayPublisherPlugin implements Plugin<Project> {
         }
     }
 
-    static void addToBulkTask(PlayPublisherPluginExtension extension, Project project, ApplicationVariant variant, DefaultTask task, HashMap<String, BulkPublishTask> bulkTasks) {
+    /**
+     * Adds a task as a dependency of a bulk task, creating the bulk task if neccessary
+     * @param extension used to check if a build type for a bulk task was defined
+     * @param project used to create the Bulk task
+     * @param variant the variant for which a task is being added
+     * @param parentTask the task being added as a dependency for the bulk task
+     */
+    static void addToBulkTask(PlayPublisherPluginExtension extension, Project project,
+                              ApplicationVariant variant, DefaultTask parentTask) {
 
-        if (extension.buildTypeName == null || !variant.buildType.name.equals(extension.buildTypeName)) return;
-
-        BulkPublishTask bulkPublishTask = bulkTasks.get(variant.buildType.name);
-
-        if (bulkPublishTask == null) {
-            bulkPublishTask = BulkPublishTask.createBulkPublishTask(project, variant, task)
-            bulkTasks.put(variant.buildType.name, bulkPublishTask)
-        } else {
-            bulkPublishTask.dependsOn(task)
+        if (extension.buildType == null || !extension.buildType.equals(variant.buildType.name)) {
+            return
         }
-    }
 
+        BulkTask bulkTask
+
+        String bulkTaskName = BulkTask.getBulkTaskName(parentTask, extension.buildType)
+
+        try {
+            bulkTask = (BulkTask) project.getTasks().getByName(bulkTaskName)
+        }
+        catch (UnknownTaskException e) { // BulkPublish task hasn't been created. Create it.
+            project.logger.debug("{$bulkTaskName} did not exist, creating it")
+            bulkTask = BulkTask.createBulkTask(project, parentTask, extension.buildType)
+        }
+
+        bulkTask.dependsOn(parentTask)
+    }
 }
