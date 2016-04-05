@@ -3,9 +3,9 @@ package de.triplet.gradle.play
 import com.android.build.gradle.AppPlugin
 import com.android.build.gradle.api.ApplicationVariant
 import org.apache.commons.lang.StringUtils
-import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.UnknownTaskException
 
 class PlayPublisherPlugin implements Plugin<Project> {
@@ -129,6 +129,7 @@ class PlayPublisherPlugin implements Plugin<Project> {
                 publishApkTask.dependsOn assembleTask
 
                 addToBulkTask(extension, project, variant, publishApkTask)
+                addToBulkTask(extension, project, variant, publishTask)
 
             } else {
                 log.warn("Could not find ZipAlign task. Did you specify a signingConfig for the variation ${variationName}?")
@@ -144,7 +145,7 @@ class PlayPublisherPlugin implements Plugin<Project> {
      * @param parentTask the task being added as a dependency for the bulk task
      */
     static void addToBulkTask(PlayPublisherPluginExtension extension, Project project,
-                              ApplicationVariant variant, DefaultTask parentTask) {
+                              ApplicationVariant variant, Task parentTask) {
 
         if (extension.buildType == null || !extension.buildType.equals(variant.buildType.name)) {
             return
