@@ -118,7 +118,7 @@ class PlayPublisherPlugin implements Plugin<Project> {
                 publishApkTask.description = "Uploads the APK for the ${variationName} build"
                 publishApkTask.group = PLAY_STORE_GROUP
 
-                def publishTask = project.tasks.create(publishTaskName)
+                PublishTask publishTask = project.tasks.create(publishTaskName, PublishTask)
                 publishTask.description = "Updates APK and play store listing for the ${variationName} build"
                 publishTask.group = PLAY_STORE_GROUP
 
