@@ -61,8 +61,10 @@ public class AndroidPublisherHelper {
     static Credential authorizeWithServiceAccount(PlayPublisherPluginExtension extension, ApplicationVariant variant)
             throws GeneralSecurityException, IOException {
 
-        String serviceAccountEmail = extension.serviceAccountEmails.get(variant.flavorName)
-        File pk12File = extension.pk12Files.get(variant.flavorName)
+        String variantName = PlayPublisherPlugin.getVariantName(variant);
+
+        String serviceAccountEmail = extension.serviceAccountEmails.get(variantName)
+        File pk12File = extension.pk12Files.get(variantName)
 
         if (serviceAccountEmail && pk12File) {
             return authorizeWithServiceAccount(serviceAccountEmail, pk12File);

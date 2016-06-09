@@ -30,19 +30,11 @@ class PlayPublisherPlugin implements Plugin<Project> {
                 return
             }
 
-            def buildTypeName = variant.buildType.name.capitalize()
-
-            def productFlavorNames = variant.productFlavors.collect { it.name.capitalize() }
-
-            if (productFlavorNames.isEmpty()) {
-                productFlavorNames = [""]
-            }
-
-            def productFlavorName = productFlavorNames.join('')
+            def productFlavorName = getProductFlavorName(variant)
 
             def flavor = StringUtils.uncapitalize(productFlavorName)
 
-            def variationName = "${productFlavorName}${buildTypeName}"
+            def variationName = getVariantName(variant)
 
             def bootstrapTaskName = "bootstrap${variationName}PlayResources"
             def playResourcesTaskName = "generate${variationName}PlayResources"
@@ -164,5 +156,22 @@ class PlayPublisherPlugin implements Plugin<Project> {
         }
 
         bulkTask.dependsOn(parentTask)
+    }
+
+    public static String getProductFlavorName(ApplicationVariant variant) {
+
+        def productFlavorNames = variant.productFlavors.collect { it.name.capitalize() }
+
+        if (productFlavorNames.isEmpty()) {
+            productFlavorNames = [""]
+        }
+
+        return productFlavorNames.join('')
+    }
+
+    public static String getVariantName(ApplicationVariant variant) {
+        def buildTypeName = variant.buildType.name.capitalize()
+
+        return "${getProductFlavorName(variant)}${buildTypeName}"
     }
 }

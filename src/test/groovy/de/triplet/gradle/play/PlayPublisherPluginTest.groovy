@@ -5,9 +5,7 @@ import org.gradle.api.internal.plugins.PluginApplicationException
 import org.gradle.testfixtures.ProjectBuilder
 import org.junit.Test
 
-import static org.junit.Assert.assertEquals
-import static org.junit.Assert.assertNotNull
-import static org.junit.Assert.fail
+import static org.junit.Assert.*
 
 class PlayPublisherPluginTest {
 
@@ -128,6 +126,47 @@ class PlayPublisherPluginTest {
 
         if (project.tasks.hasProperty('publishApkRelease') || project.tasks.hasProperty('publishRelease')) {
             fail()
+        }
+    }
+
+    @Test
+    public void testVariantMapping() {
+        Project project = TestHelper.evaluatableProject()
+
+        project.android.productFlavors {
+            kabb
+            komo
+            kmph
+            wjla
+        }
+
+        project.android.buildTypes {
+            live
+            hockey
+            debug
+        }
+
+        project.play {
+            buildType = "live"
+            serviceAccountEmails = [
+                    KabbLive: "",
+                    KomoLive: "",
+                    KmphLive: "",
+                    WjlaLive: "",
+            ]
+        }
+
+        project.evaluate()
+
+        PlayPublisherPluginExtension extension = project.extensions.findByName("play")
+
+
+        project.android.applicationVariants.all { Object variant ->
+
+            if (variant.buildType.name.equals(project.play.buildType)) {
+                String variantName = PlayPublisherPlugin.getVariantName(variant);
+                assertNotNull(extension.serviceAccountEmails.get(variantName))
+            }
         }
     }
 
